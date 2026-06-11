@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Dota 2 Analytics — Полная статистика</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: linear-gradient(135deg, #0a0c14 0%, #0e1120 100%);
+            font-family: 'Inter', sans-serif;
+            color: #eef2ff;
+            min-height: 100vh;
+            padding: 1.5rem;
+        }
+        .container { max-width: 1600px; margin: 0 auto; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1a1f2e; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #4a6aae; border-radius: 10px; }
+        
+        .header { text-align: center; margin-bottom: 2rem; }
+        .badge { display: inline-block; background: rgba(98,114,164,0.2); padding: 0.3rem 1rem; border-radius: 60px; font-size: 0.7rem; color: #a3b3e0; margin-bottom: 0.5rem; }
+        h1 { font-size: 2.2rem; font-weight: 700; background: linear-gradient(135deg, #FFFFFF 0%, #b9c8ff 100%); background-clip: text; -webkit-background-clip: text; color: transparent; }
+        
+        .input-card { background: rgba(18,22,35,0.8); border-radius: 2rem; padding: 1rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-bottom: 1.5rem; }
+        .input-card input { flex: 2; min-width: 200px; background: #0b0e16; border: none; padding: 0.8rem 1.2rem; border-radius: 1.5rem; color: white; border: 1px solid #23273a; }
+        .period-selector { display: flex; flex-wrap: wrap; gap: 0.5rem; background: #0b0e16; padding: 0.3rem 0.8rem; border-radius: 2rem; }
+        .period-btn { background: #1a1f30; border: none; padding: 0.5rem 1rem; border-radius: 1.5rem; color: #b0b8d4; cursor: pointer; font-size: 0.8rem; }
+        .period-btn.active { background: #3e5a9c; color: white; }
+        .date-range { display: flex; gap: 0.5rem; background: #0b0e16; padding: 0.3rem 0.8rem; border-radius: 2rem; }
+        .date-range input { background: #1a1f30; border: none; padding: 0.4rem 0.8rem; border-radius: 1rem; color: white; width: 120px; }
+        .fetch-btn { background: linear-gradient(95deg, #3e5a9c, #2c3e6e); border: none; padding: 0.7rem 1.8rem; border-radius: 1.8rem; font-weight: 600; color: white; cursor: pointer; }
+        
+        .hero-selector-section { background: rgba(12,16,28,0.6); border-radius: 1.5rem; padding: 1rem; margin-bottom: 1.5rem; display: flex; flex-wrap: wrap; gap: 1rem; }
+        .hero-search { flex: 1; background: #0b0e16; border: 1px solid #23273a; padding: 0.6rem 1rem; border-radius: 1rem; color: white; }
+        .hero-select { flex: 2; background: #0b0e16; border: 1px solid #23273a; padding: 0.6rem 1rem; border-radius: 1rem; color: white; cursor: pointer; }
+        .hero-stats-btn { background: #4a6aae; border: none; padding: 0.6rem 1.5rem; border-radius: 1rem; font-weight: 600; color: white; cursor: pointer; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .modal-content { background: #0f1222; border-radius: 1.5rem; max-width: 950px; width: 95%; max-height: 85vh; overflow-y: auto; padding: 1.5rem; border: 1px solid #3a4580; }
+        .modal-close { float: right; font-size: 1.8rem; cursor: pointer; color: #a3b3e0; }
+        
+        .match-card { background: #0a0d18; border-radius: 1rem; padding: 0.8rem 1rem; margin-bottom: 0.8rem; cursor: pointer; border-left: 4px solid #6fcf97; transition: 0.2s; }
+        .match-card.loss { border-left-color: #e67e7e; }
+        .match-card:hover { background: #12172a; transform: translateX(4px); }
+        .match-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
+        .match-hero { display: flex; align-items: center; gap: 12px; }
+        .match-hero-img { width: 44px; height: 44px; border-radius: 12px; background: #1a1f30; object-fit: cover; }
+        .match-result { font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 20px; }
+        .match-result.win { background: rgba(111,207,151,0.2); color: #6fcf97; }
+        .match-result.loss { background: rgba(230,126,126,0.2); color: #e67e7e; }
+        .match-items { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+        .match-item { width: 36px; height: 36px; background: #1e243b; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .match-item img { width: 32px; height: 32px; object-fit: contain; }
+        
+        .players-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; margin-top: 1rem; }
+        .player-card { background: #0a0d18; border-radius: 1rem; padding: 0.8rem; margin-bottom: 0.5rem; }
+        .player-card.radiant { border-left: 3px solid #6fcf97; }
+        .player-card.dire { border-left: 3px solid #e67e7e; }
+        .player-hero { display: flex; align-items: center; gap: 10px; margin-bottom: 0.5rem; }
+        .player-hero-img { width: 36px; height: 36px; border-radius: 8px; background: #1e243b; object-fit: cover; }
+        
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
+        .card { background: rgba(12,16,28,0.75); border-radius: 1.5rem; padding: 1.3rem; border: 1px solid rgba(74,98,148,0.35); }
+        .card h3 { margin-bottom: 1rem; border-left: 3px solid #6d8eff; padding-left: 0.8rem; }
+        .chart-container { height: 220px; }
+        
+        /* Стиль для барчарта (горизонтальная гистограмма) */
+        .barchart-container { margin-top: 0.5rem; }
+        .bar-item { margin-bottom: 0.8rem; }
+        .bar-label { display: flex; justify-content: space-between; margin-bottom: 0.2rem; font-size: 0.75rem; }
+        .bar-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+        .bar-percent { color: #8f9bb5; }
+        .bar-bg { background: #1a1f30; border-radius: 20px; height: 24px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 20px; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 0.7rem; font-weight: 600; color: white; background: linear-gradient(90deg, #4d6ecf, #6d8eff); width: 0%; transition: width 0.3s ease; }
+        
+        .hero-list { max-height: 400px; overflow-y: auto; }
+        .hero-item { display: flex; justify-content: space-between; padding: 0.7rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; }
+        .hero-item:hover { background: rgba(100,120,200,0.2); padding-left: 0.5rem; }
+        .winrate-circle { text-align: center; padding: 1rem; }
+        .winrate-percent { font-size: 3rem; font-weight: 800; }
+        .winrate-percent.win { color: #6fcf97; }
+        .winrate-percent.loss { color: #e67e7e; }
+        .recent-matches-list { max-height: 300px; overflow-y: auto; margin-top: 1rem; }
+        .recent-match-item { background: #0a0d18; border-radius: 0.8rem; padding: 0.8rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; cursor: pointer; }
+        .recent-match-item:hover { background: #1a1f30; }
+        .loading-panel { background: rgba(12,16,28,0.7); border-radius: 1.5rem; padding: 2rem; text-align: center; }
+        .spinner { width: 48px; height: 48px; border: 3px solid #2c3147; border-top-color: #6d8eff; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error-msg { background: #2e1a2a; border-left: 5px solid #ff7b72; padding: 1rem; border-radius: 1rem; margin: 1rem 0; }
+        .profile-header { background: #0b0f1a; border-radius: 1.5rem; padding: 1rem; margin-bottom: 1rem; display: flex; justify-content: space-between; flex-wrap: wrap; }
+        .period-info { background: #0a0d18; border-radius: 1rem; padding: 0.5rem 1rem; margin-bottom: 1rem; text-align: center; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="badge">⚔️ OPENDOTA API • ВЫБОР ПЕРИОДА ⚔️</div>
+        <h1>Dota 2 Hero Analytics</h1>
+    </div>
+
+    <div class="input-card">
+        <input type="text" id="steamInput" placeholder="Steam профиль" value="https://steamcommunity.com/profiles/76561198968140804/">
+        <div class="period-selector" id="periodSelector">
+            <button class="period-btn" data-period="20">20 игр</button>
+            <button class="period-btn" data-period="month">Месяц</button>
+            <button class="period-btn" data-period="3months">3 месяца</button>
+            <button class="period-btn" data-period="custom">Свои даты</button>
+        </div>
+        <div class="date-range" id="dateRange" style="display: none;">
+            <input type="date" id="startDate"> — <input type="date" id="endDate">
+        </div>
+        <button class="fetch-btn" id="fetchBtn">Анализировать</button>
+    </div>
+
+    <div id="heroSelectorSection" style="display: none;" class="hero-selector-section">
+        <input type="text" id="heroSearch" placeholder="Поиск героя..." class="hero-search">
+        <select id="heroSelect" class="hero-select"><option>-- Выберите героя --</option></select>
+        <button id="showHeroStatsBtn" class="hero-stats-btn">Статистика героя</button>
+    </div>
+
+    <div id="loadingPanel" style="display: none;" class="loading-panel"><div class="spinner"></div><p>Загрузка данных...</p></div>
+    <div id="dashboard" style="display: none;"></div>
+    <div id="errorMsg" class="error-msg" style="display: none;"></div>
+</div>
+
+<div id="heroModal" class="modal"><div class="modal-content"><span class="modal-close" onclick="closeHeroModal()">&times;</span><h3 id="heroModalTitle"></h3><div id="heroModalContent"></div><h4>Последние 20 матчей</h4><div id="heroRecentMatches" class="recent-matches-list"></div></div></div>
+<div id="matchModal" class="modal"><div class="modal-content"><span class="modal-close" onclick="closeMatchModal()">&times;</span><h3 id="matchModalTitle"></h3><div id="matchModalContent"></div></div></div>
+
+<script>
+    const PROXY_URL = 'https://corsproxy.io/?';
+    const OPENDOTA_BASE = 'https://api.opendota.com';
+    let globalHeroesList = [], globalMatches = [], globalAccountId = null;
+    let currentPeriod = '20';
+    let matchesDetailsCache = new Map();
+    let itemsCache = new Map();
+
+    const HERO_CDN = 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes';
+    const ITEM_CDN = 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/items';
+
+    async function fetchWithProxy(endpoint) {
+        const response = await fetch(`${PROXY_URL}${encodeURIComponent(OPENDOTA_BASE + endpoint)}`, { headers: { 'User-Agent': 'Dota2Analytics/1.0' } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
+    }
+
+    async function fetchDirect(endpoint) {
+        const response = await fetch(OPENDOTA_BASE + endpoint, { headers: { 'User-Agent': 'Dota2Analytics/1.0' } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
+    }
+
+    async function loadItemsList() {
+        if (itemsCache.size > 0) return;
+        try {
+            const items = await fetchDirect('/api/constants/items');
+            for (const [key, value] of Object.entries(items)) {
+                itemsCache.set(value.id, { name: key, img: value.img });
+            }
+        } catch(e) { console.error('Items load error:', e); }
+    }
+
+    function getItemImageUrl(itemId) {
+        if (!itemId || itemId === 0) return null;
+        const item = itemsCache.get(itemId);
+        if (item && item.img) {
+            return `https://cdn.cloudflare.steamstatic.com${item.img}`;
+        }
+        return `${ITEM_CDN}/${itemId}.png`;
+    }
+
+    async function resolveSteamId(input) {
+        let trimmed = input.trim();
+        if (/^\d+$/.test(trimmed)) return parseInt(trimmed);
+        let profileMatch = trimmed.match(/steamcommunity\.com\/profiles\/(\d+)/i);
+        if (profileMatch) {
+            let steam64 = profileMatch[1];
+            return Number(BigInt(steam64) - 76561197960265728n);
+        }
+        let vanityMatch = trimmed.match(/steamcommunity\.com\/id\/([a-zA-Z0-9_]+)/i);
+        if (vanityMatch) {
+            const data = await fetchDirect(`/api/search?q=${encodeURIComponent(vanityMatch[1])}`);
+            if (data?.length) return data[0].account_id;
+        }
+        throw new Error("Не удалось определить Steam ID");
+    }
+
+    function getHeroName(heroId) {
+        const hero = globalHeroesList.find(h => h.id === heroId);
+        return hero ? hero.localized_name : `Hero #${heroId}`;
+    }
+
+    function getHeroImg(heroId) {
+        const name = getHeroName(heroId).toLowerCase().replace(/ /g, '_');
+        return `${HERO_CDN}/${name}.png`;
+    }
+
+    async function getMatchDetails(matchId) {
+        if (matchesDetailsCache.has(matchId)) return matchesDetailsCache.get(matchId);
+        const data = await fetchWithProxy(`/api/matches/${matchId}`);
+        matchesDetailsCache.set(matchId, data);
+        return data;
+    }
+
+    function filterMatchesByPeriod(matches, period, startDateCustom, endDateCustom) {
+        if (period === '20') return matches.slice(0, 20);
+        const now = Math.floor(Date.now() / 1000);
+        let startTime;
+        if (period === 'month') startTime = now - 30 * 24 * 60 * 60;
+        else if (period === '3months') startTime = now - 90 * 24 * 60 * 60;
+        else if (period === 'custom' && startDateCustom && endDateCustom) {
+            startTime = Math.floor(new Date(startDateCustom).getTime() / 1000);
+            const endTime = Math.floor(new Date(endDateCustom).getTime() / 1000);
+            return matches.filter(m => m.start_time >= startTime && m.start_time <= endTime);
+        } else return matches;
+        return matches.filter(m => m.start_time >= startTime);
+    }
+
+    window.showHeroStats = async (heroName) => {
+        const hero = globalHeroesList.find(h => h.localized_name === heroName);
+        if (!hero) return;
+        const heroMatches = globalMatches.filter(m => m.hero_id === hero.id);
+        const wins = heroMatches.filter(m => m.radiant_win === (m.player_slot < 128)).length;
+        const total = heroMatches.length;
+        const winrate = total > 0 ? (wins / total * 100) : 0;
+        
+        document.getElementById('heroModalTitle').innerHTML = `📊 ${heroName} - Винрейт`;
+        document.getElementById('heroModalContent').innerHTML = `
+            <div class="winrate-circle">
+                <div class="winrate-percent ${winrate >= 50 ? 'win' : 'loss'}">${winrate.toFixed(1)}%</div>
+                <div>${wins}W / ${total - wins}L (${total} игр)</div>
+                <canvas id="heroWinChart" style="max-height:180px;margin-top:1rem;"></canvas>
+            </div>`;
+        
+        setTimeout(() => {
+            const ctx = document.getElementById('heroWinChart')?.getContext('2d');
+            if (ctx) new Chart(ctx, { type: 'pie', data: { labels: ['Победы', 'Поражения'], datasets: [{ data: [wins, total - wins], backgroundColor: ['#6fcf97', '#e67e7e'] }] } });
+        }, 100);
+        
+        document.getElementById('heroRecentMatches').innerHTML = heroMatches.slice(0, 20).map(m => {
+            const isWin = m.radiant_win === (m.player_slot < 128);
+            const date = new Date(m.start_time * 1000).toLocaleString();
+            return `<div class="recent-match-item" onclick="showMatchDetails(${m.match_id})" style="border-left:3px solid ${isWin ? '#6fcf97' : '#e67e7e'}">
+                        <span>📅 ${date}</span>
+                        <span style="color:${isWin ? '#6fcf97' : '#e67e7e'}">${isWin ? 'Победа' : 'Поражение'}</span>
+                    </div>`;
+        }).join('');
+        document.getElementById('heroModal').style.display = 'flex';
+    };
+
+    window.showMatchDetails = async (matchId) => {
+        const match = await getMatchDetails(matchId);
+        if (!match) return;
+        const duration = new Date(match.duration * 1000).toISOString().substr(11, 8);
+        const date = new Date(match.start_time * 1000).toLocaleString();
+        document.getElementById('matchModalTitle').innerHTML = `🎮 Матч от ${date} • ${duration} • ${match.radiant_win ? 'Radiant победила' : 'Dire победила'}`;
+        
+        const players = match.players || [];
+        const radiantPlayers = players.filter(p => p.player_slot < 128).sort((a,b) => a.player_slot - b.player_slot);
+        const direPlayers = players.filter(p => p.player_slot >= 128).sort((a,b) => a.player_slot - b.player_slot);
+        
+        document.getElementById('matchModalContent').innerHTML = `
+            <div class="players-grid">
+                <div><h4 style="color:#6fcf97">☀️ RADIANT</h4>
+                    ${radiantPlayers.map(p => {
+                        const items = [p.item_0, p.item_1, p.item_2, p.item_3, p.item_4, p.item_5].filter(i => i && i > 0);
+                        return `<div class="player-card radiant">
+                            <div class="player-hero">
+                                <img class="player-hero-img" src="${getHeroImg(p.hero_id)}" onerror="this.src='https://via.placeholder.com/36'">
+                                <strong>${getHeroName(p.hero_id)}</strong>
+                            </div>
+                            <div>KDA: ${p.kills}/${p.deaths}/${p.assists} | Уровень: ${p.level}</div>
+                            <div class="match-items">
+                                ${items.map(itemId => `<div class="match-item"><img src="${getItemImageUrl(itemId)}" onerror="this.style.display='none'"></div>`).join('') || '—'}
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>
+                <div><h4 style="color:#e67e7e">🌙 DIRE</h4>
+                    ${direPlayers.map(p => {
+                        const items = [p.item_0, p.item_1, p.item_2, p.item_3, p.item_4, p.item_5].filter(i => i && i > 0);
+                        return `<div class="player-card dire">
+                            <div class="player-hero">
+                                <img class="player-hero-img" src="${getHeroImg(p.hero_id)}" onerror="this.src='https://via.placeholder.com/36'">
+                                <strong>${getHeroName(p.hero_id)}</strong>
+                            </div>
+                            <div>KDA: ${p.kills}/${p.deaths}/${p.assists} | Уровень: ${p.level}</div>
+                            <div class="match-items">
+                                ${items.map(itemId => `<div class="match-item"><img src="${getItemImageUrl(itemId)}" onerror="this.style.display='none'"></div>`).join('') || '—'}
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>`;
+        document.getElementById('matchModal').style.display = 'flex';
+    };
+
+    function closeHeroModal() { document.getElementById('heroModal').style.display = 'none'; }
+    function closeMatchModal() { document.getElementById('matchModal').style.display = 'none'; }
+
+    function renderPickrateBarchart(heroStats, totalGames) {
+        const topHeroes = heroStats.slice(0, 10);
+        return `
+            <div class="barchart-container">
+                ${topHeroes.map(hero => {
+                    const percent = (hero.games / totalGames * 100).toFixed(1);
+                    return `
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span class="bar-name" title="${hero.name}">${hero.name}</span>
+                                <span class="bar-percent">${hero.games} игр (${percent}%)</span>
+                            </div>
+                            <div class="bar-bg">
+                                <div class="bar-fill" style="width: ${percent}%">${percent > 15 ? percent+'%' : ''}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    }
+
+    async function renderDashboard(profile, matches, periodLabel) {
+        const dashboardDiv = document.getElementById('dashboard');
+        dashboardDiv.style.display = 'block';
+        const totalMatches = matches.length;
+        const wins = matches.filter(m => m.radiant_win === (m.player_slot < 128)).length;
+        const winrate = totalMatches > 0 ? (wins / totalMatches * 100) : 0;
+        
+        const heroMap = new Map();
+        matches.forEach(m => {
+            const hid = m.hero_id;
+            const won = m.radiant_win === (m.player_slot < 128);
+            if (!heroMap.has(hid)) heroMap.set(hid, { games: 0, wins: 0, name: getHeroName(hid) });
+            const h = heroMap.get(hid);
+            h.games++; if (won) h.wins++;
+        });
+        const heroStats = Array.from(heroMap.values()).map(h => ({ ...h, winrate: h.games > 0 ? (h.wins / h.games * 100) : 0 })).sort((a,b) => b.games - a.games);
+        const rankTier = profile.rank_tier ? `${Math.floor(profile.rank_tier/10)}${'★'.repeat(profile.rank_tier%10)}` : 'Ранг не определён';
+        
+        dashboardDiv.innerHTML = `
+            <div class="profile-header"><div><strong>🎮 ${profile.profile?.personaname || 'Игрок'}</strong> • 🆔 ${globalAccountId}</div><div>🏆 ${rankTier}</div></div>
+            <div class="period-info">📊 Период: ${periodLabel} • ${totalMatches} матчей</div>
+            <div class="dashboard">
+                <div class="card"><h3>Общий винрейт</h3><div class="winrate-circle"><div class="winrate-percent ${winrate >= 50 ? 'win' : 'loss'}">${winrate.toFixed(1)}%</div><div>${wins}W / ${totalMatches-wins}L</div></div><div class="chart-container"><canvas id="winlossChart"></canvas></div></div>
+                <div class="card"><h3>🏆 Топ-10 пикрейта</h3>${renderPickrateBarchart(heroStats, totalMatches)}</div>
+                <div class="card"><h3>⚔️ Все герои (кликни)</h3><div class="hero-list" id="heroListContainer"></div></div>
+            </div>
+            <div class="card" style="margin-top:1.5rem;"><h3>📜 История матчей (кликни для деталей)</h3><div id="matchHistoryContainer"></div></div>`;
+        
+        new Chart(document.getElementById('winlossChart').getContext('2d'), { type: 'pie', data: { labels: ['Победы', 'Поражения'], datasets: [{ data: [wins, totalMatches-wins], backgroundColor: ['#6fcf97', '#e67e7e'] }] } });
+        
+        document.getElementById('heroListContainer').innerHTML = heroStats.map(h => `<div class="hero-item" onclick="showHeroStats('${h.name.replace(/'/g, "\\'")}')"><span>${h.name}</span><span>${h.games} игр | ${h.winrate.toFixed(1)}%</span></div>`).join('');
+        
+        const matchHistoryDiv = document.getElementById('matchHistoryContainer');
+        matchHistoryDiv.innerHTML = matches.slice(0, 50).map(m => {
+            const isWin = m.radiant_win === (m.player_slot < 128);
+            const heroName = getHeroName(m.hero_id);
+            const duration = new Date(m.duration * 1000).toISOString().substr(11, 8);
+            const date = new Date(m.start_time * 1000).toLocaleString();
+            return `<div class="match-card ${isWin ? 'win' : 'loss'}" onclick="showMatchDetails(${m.match_id})">
+                        <div class="match-header">
+                            <div class="match-hero">
+                                <img class="match-hero-img" src="${getHeroImg(m.hero_id)}" onerror="this.src='https://via.placeholder.com/44'">
+                                <div><strong>${heroName}</strong><br><span style="font-size:0.7rem;color:#8f9bb5;">${date}</span></div>
+                            </div>
+                            <div class="match-result ${isWin ? 'win' : 'loss'}">${isWin ? 'Победа' : 'Поражение'}</div>
+                        </div>
+                        <div style="font-size:0.7rem;">⏱️ ${duration}</div>
+                        <div class="match-items" id="items-${m.match_id}"></div>
+                    </div>`;
+        }).join('');
+        
+        for (const m of matches.slice(0, 50)) {
+            try {
+                const matchDetail = await getMatchDetails(m.match_id);
+                const player = matchDetail?.players?.find(p => p.player_slot === m.player_slot);
+                if (player) {
+                    const items = [player.item_0, player.item_1, player.item_2, player.item_3, player.item_4, player.item_5].filter(i => i && i > 0);
+                    const container = document.getElementById(`items-${m.match_id}`);
+                    if (container) {
+                        if (items.length) {
+                            container.innerHTML = items.map(itemId => `<div class="match-item"><img src="${getItemImageUrl(itemId)}" onerror="this.style.display='none'"></div>`).join('');
+                        } else {
+                            container.innerHTML = '<span style="font-size:0.6rem;color:#8f9bb5;">—</span>';
+                        }
+                    }
+                }
+            } catch(e) {}
+        }
+    }
+
+    async function setupHeroSelector() {
+        const select = document.getElementById('heroSelect');
+        select.innerHTML = '<option>-- Выберите героя --</option>' + globalHeroesList.map(h => `<option value="${h.id}">${h.localized_name}</option>`).join('');
+        document.getElementById('heroSearch').oninput = (e) => {
+            const term = e.target.value.toLowerCase();
+            select.innerHTML = '<option>-- Выберите героя --</option>' + globalHeroesList.filter(h => h.localized_name.toLowerCase().includes(term)).map(h => `<option value="${h.id}">${h.localized_name}</option>`).join('');
+        };
+        document.getElementById('showHeroStatsBtn').onclick = () => {
+            const heroId = document.getElementById('heroSelect').value;
+            if (!heroId || heroId === '-- Выберите героя --') return alert('Выберите героя');
+            const hero = globalHeroesList.find(h => h.id == heroId);
+            if (hero) showHeroStats(hero.localized_name);
+        };
+    }
+
+    const periodBtns = document.querySelectorAll('.period-btn');
+    const dateRangeDiv = document.getElementById('dateRange');
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    const today = new Date();
+    const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
+    startDateInput.value = monthAgo.toISOString().split('T')[0];
+    endDateInput.value = today.toISOString().split('T')[0];
+    
+    periodBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            periodBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentPeriod = btn.dataset.period;
+            dateRangeDiv.style.display = currentPeriod === 'custom' ? 'flex' : 'none';
+        });
+    });
+    document.querySelector('.period-btn[data-period="20"]').classList.add('active');
+
+    async function main() {
+        const input = document.getElementById('steamInput').value;
+        if (!input) return;
+        
+        document.getElementById('loadingPanel').style.display = 'block';
+        document.getElementById('dashboard').style.display = 'none';
+        document.getElementById('errorMsg').style.display = 'none';
+        document.getElementById('heroSelectorSection').style.display = 'none';
+        
+        try {
+            await loadItemsList();
+            const accountId = await resolveSteamId(input);
+            globalAccountId = accountId;
+            const [profile, allMatches, heroes] = await Promise.all([
+                fetchWithProxy(`/api/players/${accountId}`), 
+                fetchWithProxy(`/api/players/${accountId}/matches?limit=150&lobby_type=7`), 
+                fetchDirect('/api/heroes')
+            ]);
+            globalHeroesList = heroes;
+            
+            let startCustom = null, endCustom = null, periodLabel = '';
+            if (currentPeriod === '20') periodLabel = 'Последние 20 игр';
+            else if (currentPeriod === 'month') periodLabel = 'Последний месяц';
+            else if (currentPeriod === '3months') periodLabel = 'Последние 3 месяца';
+            else if (currentPeriod === 'custom') { 
+                startCustom = startDateInput.value; 
+                endCustom = endDateInput.value; 
+                periodLabel = `${startCustom} — ${endCustom}`;
+            }
+            
+            let filteredMatches = filterMatchesByPeriod(allMatches, currentPeriod, startCustom, endCustom);
+            if (currentPeriod === '20') filteredMatches = filteredMatches.slice(0, 20);
+            if (!filteredMatches.length) throw new Error('Нет матчей за выбранный период');
+            globalMatches = filteredMatches;
+            
+            await renderDashboard(profile, filteredMatches, periodLabel);
+            document.getElementById('heroSelectorSection').style.display = 'flex';
+            await setupHeroSelector();
+            document.getElementById('loadingPanel').style.display = 'none';
+        } catch(err) {
+            document.getElementById('loadingPanel').style.display = 'none';
+            document.getElementById('errorMsg').style.display = 'block';
+            document.getElementById('errorMsg').innerHTML = `❌ Ошибка: ${err.message}`;
+        }
+    }
+    
+    document.getElementById('fetchBtn').onclick = main;
+    window.onclick = (e) => { if (e.target.classList.contains('modal')) e.target.style.display = 'none'; };
+</script>
+</body>
+</html>
